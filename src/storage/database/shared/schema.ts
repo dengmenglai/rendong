@@ -1,11 +1,10 @@
-import { pgTable, serial, varchar, timestamp, integer, text, index, boolean } from "drizzle-orm/pg-core"
+import { pgTable, serial, varchar, timestamp, integer, text, index } from "drizzle-orm/pg-core"
 
 // 用户表 - 简单的用户信息
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   username: varchar("username", { length: 50 }).notNull().unique(),
   avatar: varchar("avatar", { length: 10 }).notNull().default("👤"),
-  is_admin: boolean("is_admin").notNull().default(false),
   created_at: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow(),
 });
 
