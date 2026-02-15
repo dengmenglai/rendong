@@ -1,14 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
-import { S3Storage } from 'coze-coding-dev-sdk';
-
-const storage = new S3Storage({
-  endpointUrl: process.env.COZE_BUCKET_ENDPOINT_URL,
-  accessKey: "",
-  secretKey: "",
-  bucketName: process.env.COZE_BUCKET_NAME,
-  region: "cn-beijing",
-});
+import { uploadFile, getSignedUrlForKey, deleteFile, isOssConfigured } from '@/lib/aliyun-oss';
 
 // 获取录音列表
 export async function GET(request: NextRequest) {
@@ -73,10 +65,7 @@ export async function GET(request: NextRequest) {
     const recordingsWithUrl = await Promise.all(
       (recordings || []).map(async (r: any) => {
         try {
-          const audioUrl = await storage.generatePresignedUrl({
-            key: r.audio_key,
-            expireTime: 3600,
-          });
+          const audioUrl = await getSignedUrlForKey(r.audio_key, 3600);
           return {
             ...r,
             audio_url: audioUrl,
@@ -102,6 +91,12 @@ export async function GET(request: NextRequest) {
 // 上传录音
 export async function POST(request: NextRequest) {
   try {
+    // 检查 OSS 配置
+    if (!isOssConfigured()) {
+      console.error('OSS not configured');
+      return NextResponse.json({ error: '存储服务未配置' }, { status: 500 });
+    }
+
     const formData = await request.formData();
     const userId = formData.get('userId');
     const articleId = formData.get('articleId');
@@ -114,15 +109,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '缺少必要参数' }, { status: 400 });
     }
     
-    // 上传音频文件到对象存储
+    // 上传音频文件到阿里云 OSS
     const audioBuffer = Buffer.from(await audioFile.arrayBuffer());
     const fileName = `recordings/${userId}_${Date.now()}.webm`;
     
-    const audioKey = await storage.uploadFile({
-      fileContent: audioBuffer,
+    const audioKey = await uploadFile(
+      audioBuffer,
       fileName,
-      contentType: audioFile.type || 'audio/webm',
-    });
+      audioFile.type || 'audio/webm'
+    );
     
     // 保存到数据库
     const client = getSupabaseClient();
@@ -160,10 +155,7 @@ export async function POST(request: NextRequest) {
     }
     
     // 生成签名URL
-    const audioUrl = await storage.generatePresignedUrl({
-      key: audioKey,
-      expireTime: 3600,
-    });
+    const audioUrl = await getSignedUrlForKey(audioKey, 3600);
     
     return NextResponse.json({
       recording: {
@@ -206,9 +198,9 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: '无权删除' }, { status: 403 });
     }
     
-    // 删除对象存储中的音频文件
+    // 删除 OSS 中的音频文件
     try {
-      await storage.deleteFile({ fileKey: recording.audio_key });
+      await deleteFile(recording.audio_key);
     } catch (e) {
       console.error('Delete audio file error:', e);
       // 继续删除数据库记录，即使文件删除失败

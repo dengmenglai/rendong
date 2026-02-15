@@ -35,14 +35,6 @@ function getSupabaseCredentials(): SupabaseCredentials {
   const url = process.env.COZE_SUPABASE_URL;
   const anonKey = process.env.COZE_SUPABASE_ANON_KEY;
 
-  // 调试日志
-  console.log('Environment check:', {
-    hasUrl: !!url,
-    hasKey: !!anonKey,
-    urlPrefix: url ? url.substring(0, 30) + '...' : 'undefined',
-    allEnvKeys: Object.keys(process.env).filter(k => k.startsWith('COZE_')).join(', '),
-  });
-
   if (!url) {
     throw new Error('COZE_SUPABASE_URL is not set');
   }
