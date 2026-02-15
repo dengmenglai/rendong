@@ -1253,7 +1253,12 @@ export default function ReadingPractice() {
                               <span className="text-xs text-gray-400">{formatTime(rec.duration)}</span>
                             </div>
                             {rec.audio_url && (
-                              <audio src={rec.audio_url} controls className="w-full h-6" />
+                              <audio 
+                                src={rec.audio_url} 
+                                controls 
+                                preload="metadata"
+                                className="w-full h-6" 
+                              />
                             )}
                           </div>
                           <button
@@ -1474,7 +1479,12 @@ export default function ReadingPractice() {
                       </div>
                       
                       {rec.audio_url && (
-                        <audio src={rec.audio_url} controls className="w-full mb-3" />
+                        <audio 
+                          src={rec.audio_url} 
+                          controls 
+                          preload="metadata"
+                          className="w-full mb-3" 
+                        />
                       )}
 
                       <div className="flex items-center justify-between mb-3">

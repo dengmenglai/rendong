@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { getSignedUrlForKey, isOssConfigured } from '@/lib/aliyun-oss';
 
 export async function GET() {
   const config = {
@@ -9,6 +10,18 @@ export async function GET() {
     hasKeySecret: !!(process.env.ALIYUN_ACCESS_KEY_SECRET),
   };
   
+  // 尝试生成一个测试签名 URL
+  let testUrl = null;
+  let urlError = null;
+  
+  if (isOssConfigured()) {
+    try {
+      testUrl = await getSignedUrlForKey('recordings/14_1771140304434.webm', 3600);
+    } catch (e) {
+      urlError = e instanceof Error ? e.message : String(e);
+    }
+  }
+  
   return NextResponse.json({
     configured: !!(config.bucket && config.hasKeyId && config.hasKeySecret),
     config: {
@@ -18,5 +31,7 @@ export async function GET() {
       hasKeyId: config.hasKeyId,
       hasKeySecret: config.hasKeySecret,
     },
+    testUrl: testUrl ? testUrl.substring(0, 100) + '...' : null,
+    urlError,
   });
 }
