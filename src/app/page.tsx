@@ -289,6 +289,7 @@ interface User {
   id: number;
   username: string;
   avatar: string;
+  is_admin?: boolean;
 }
 
 // 录音类型
@@ -339,7 +340,7 @@ interface StudyStats {
 
 export default function ReadingPractice() {
   // 状态
-  const [currentView, setCurrentView] = useState<'library' | 'practice' | 'stats' | 'community'>('library');
+  const [currentView, setCurrentView] = useState<'library' | 'practice' | 'stats' | 'community' | 'admin'>('library');
   const [currentArticle, setCurrentArticle] = useState<typeof articles[0] | null>(null);
   const [filter, setFilter] = useState('all');
   const [user, setUser] = useState<User | null>(null);
@@ -373,6 +374,16 @@ export default function ReadingPractice() {
   // 签到成功弹窗
   const [showCheckinSuccess, setShowCheckinSuccess] = useState(false);
   const [checkinStreak, setCheckinStreak] = useState(0);
+  
+  // 管理员相关
+  const [adminStats, setAdminStats] = useState<{
+    users: number;
+    recordings: number;
+    comments: number;
+    likes: number;
+  } | null>(null);
+  const [adminUsers, setAdminUsers] = useState<any[]>([]);
+  const [adminRecordings, setAdminRecordings] = useState<any[]>([]);
 
   // 初始化用户
   useEffect(() => {
@@ -457,6 +468,92 @@ export default function ReadingPractice() {
       loadRecordings();
     }
   }, [currentView, user]);
+
+  // 加载管理员数据
+  const loadAdminData = async () => {
+    if (!user?.is_admin) return;
+    try {
+      const res = await fetch(`/api/admin?userId=${user.id}`);
+      const data = await res.json();
+      if (data.stats) {
+        setAdminStats(data.stats);
+        setAdminUsers(data.users || []);
+        setAdminRecordings(data.recordings || []);
+      }
+    } catch (error) {
+      console.error('Load admin data error:', error);
+    }
+  };
+
+  useEffect(() => {
+    if (currentView === 'admin' && user?.is_admin) {
+      loadAdminData();
+    }
+  }, [currentView, user]);
+
+  // 管理员操作
+  const handleToggleAdmin = async (targetUserId: number, isAdmin: boolean) => {
+    if (!user?.is_admin) return;
+    if (!confirm(isAdmin ? '确定要设为管理员吗？' : '确定要取消管理员吗？')) return;
+    
+    try {
+      const res = await fetch('/api/admin', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          adminId: user.id,
+          targetUserId,
+          isAdmin,
+        }),
+      });
+      const data = await res.json();
+      
+      if (data.success) {
+        setAdminUsers(prev => prev.map(u => 
+          u.id === targetUserId ? { ...u, is_admin: isAdmin } : u
+        ));
+      }
+    } catch (error) {
+      console.error('Toggle admin error:', error);
+    }
+  };
+
+  const handleDeleteUser = async (userId: number) => {
+    if (!user?.is_admin) return;
+    if (!confirm('确定要删除该用户吗？该操作不可撤销！')) return;
+    
+    try {
+      const res = await fetch(`/api/admin?adminId=${user.id}&type=user&id=${userId}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json();
+      
+      if (data.success) {
+        setAdminUsers(prev => prev.filter(u => u.id !== userId));
+        setAdminRecordings(prev => prev.filter(r => r.user_id !== userId));
+      }
+    } catch (error) {
+      console.error('Delete user error:', error);
+    }
+  };
+
+  const handleDeleteRecordingAdmin = async (recordingId: number) => {
+    if (!user?.is_admin) return;
+    if (!confirm('确定要删除该录音吗？')) return;
+    
+    try {
+      const res = await fetch(`/api/admin?adminId=${user.id}&type=recording&id=${recordingId}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json();
+      
+      if (data.success) {
+        setAdminRecordings(prev => prev.filter(r => r.id !== recordingId));
+      }
+    } catch (error) {
+      console.error('Delete recording error:', error);
+    }
+  };
 
   // 数字转英文序数词
   const numberToOrdinal = (num: number): string => {
@@ -1565,6 +1662,127 @@ export default function ReadingPractice() {
             </div>
           </section>
         )}
+
+        {/* 管理员后台 */}
+        {currentView === 'admin' && user?.is_admin && (
+          <section className="space-y-6">
+            <button
+              onClick={() => setCurrentView('library')}
+              className="text-white hover:text-blue-200 flex items-center gap-2 font-medium"
+            >
+              ← 返回列表
+            </button>
+
+            <div className="bg-white/95 backdrop-blur rounded-2xl p-6 shadow-xl">
+              <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-3">
+                🛠️ 管理后台
+              </h2>
+
+              {/* 统计卡片 */}
+              {adminStats && (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                  <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white p-4 rounded-xl">
+                    <div className="text-3xl font-bold">{adminStats.users}</div>
+                    <div className="text-sm opacity-80">用户总数</div>
+                  </div>
+                  <div className="bg-gradient-to-br from-green-500 to-green-600 text-white p-4 rounded-xl">
+                    <div className="text-3xl font-bold">{adminStats.recordings}</div>
+                    <div className="text-sm opacity-80">录音总数</div>
+                  </div>
+                  <div className="bg-gradient-to-br from-purple-500 to-purple-600 text-white p-4 rounded-xl">
+                    <div className="text-3xl font-bold">{adminStats.comments}</div>
+                    <div className="text-sm opacity-80">评论总数</div>
+                  </div>
+                  <div className="bg-gradient-to-br from-orange-500 to-orange-600 text-white p-4 rounded-xl">
+                    <div className="text-3xl font-bold">{adminStats.likes}</div>
+                    <div className="text-sm opacity-80">点赞总数</div>
+                  </div>
+                </div>
+              )}
+
+              {/* 用户管理 */}
+              <div className="mb-8">
+                <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                  👥 用户管理
+                </h3>
+                <div className="space-y-3">
+                  {adminUsers.map(u => (
+                    <div key={u.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
+                      <div className="flex items-center gap-3">
+                        <img src={u.avatar} alt="" className="w-10 h-10 rounded-full" />
+                        <div>
+                          <div className="font-medium text-gray-900 flex items-center gap-2">
+                            {u.username}
+                            {u.is_admin && (
+                              <span className="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded">管理员</span>
+                            )}
+                          </div>
+                          <div className="text-sm text-gray-500">
+                            ID: {u.id} · {new Date(u.created_at).toLocaleDateString()}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {u.id !== user.id && (
+                          <>
+                            <button
+                              onClick={() => handleToggleAdmin(u.id, !u.is_admin)}
+                              className={`px-3 py-1.5 text-sm rounded-lg ${
+                                u.is_admin
+                                  ? 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                                  : 'bg-blue-100 text-blue-600 hover:bg-blue-200'
+                              }`}
+                            >
+                              {u.is_admin ? '取消管理员' : '设为管理员'}
+                            </button>
+                            <button
+                              onClick={() => handleDeleteUser(u.id)}
+                              className="px-3 py-1.5 text-sm bg-red-100 text-red-600 rounded-lg hover:bg-red-200"
+                            >
+                              删除
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* 录音管理 */}
+              <div>
+                <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                  🎤 录音管理
+                </h3>
+                <div className="space-y-3">
+                  {adminRecordings.map(rec => (
+                    <div key={rec.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
+                      <div className="flex items-center gap-3">
+                        <img
+                          src={rec.users?.avatar || '/default-avatar.png'}
+                          alt=""
+                          className="w-8 h-8 rounded-full"
+                        />
+                        <div>
+                          <div className="font-medium text-gray-900">{rec.article_title || '未命名文章'}</div>
+                          <div className="text-sm text-gray-500">
+                            {rec.users?.username || '匿名'} · {rec.duration}s · {rec.likes} 赞 · {new Date(rec.created_at).toLocaleDateString()}
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleDeleteRecordingAdmin(rec.id)}
+                        className="px-3 py-1.5 text-sm bg-red-100 text-red-600 rounded-lg hover:bg-red-200"
+                      >
+                        删除
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
       </main>
 
       {/* 底部导航 */}
@@ -1574,6 +1792,7 @@ export default function ReadingPractice() {
             { id: 'library', icon: '📚', label: '材料库' },
             { id: 'stats', icon: '📊', label: '学习数据' },
             { id: 'community', icon: '🎤', label: '社区' },
+            ...(user?.is_admin ? [{ id: 'admin', icon: '🛠️', label: '管理' }] : []),
           ].map(tab => (
             <button
               key={tab.id}
