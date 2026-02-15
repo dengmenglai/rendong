@@ -1,0 +1,1097 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>忍冬人机对话练习</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+        }
+        body {
+            font-family: 'Noto Sans SC', sans-serif;
+            background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 50%, #06b6d4 100%);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+        .word-span {
+            cursor: pointer;
+            transition: all 0.15s ease;
+            border-radius: 0.25rem;
+            padding: 0.125rem 0.25rem;
+            margin: 0 0.0625rem;
+            display: inline-block;
+            position: relative;
+            line-height: 1.8;
+        }
+        .word-span:active {
+            transform: scale(0.95);
+            background: #dbeafe;
+        }
+        .word-span.playing {
+            background: #3b82f6;
+            color: white;
+            font-weight: 600;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+        }
+        .phonetic {
+            font-family: 'JetBrains Mono', monospace;
+            color: #6b7280;
+            font-size: 0.7em;
+            margin-left: 0.125rem;
+            opacity: 0.9;
+        }
+        .new-word {
+            background: linear-gradient(120deg, #fef3c7 0%, #fde68a 100%);
+            border-bottom: 2px solid #f59e0b;
+            font-weight: 500;
+        }
+        .new-word .phonetic {
+            color: #d97706;
+            font-weight: 600;
+        }
+        .difficulty-badge {
+            font-size: 0.75rem;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        .difficulty-easy { background: #d1fae5; color: #065f46; }
+        .difficulty-medium { background: #fef3c7; color: #92400e; }
+        .difficulty-hard { background: #fee2e2; color: #991b1b; }
+        
+        /* Mobile optimizations */
+        @media (max-width: 640px) {
+            .word-span {
+                padding: 0.25rem 0.125rem;
+                margin: 0;
+                line-height: 2;
+            }
+            .phonetic {
+                font-size: 0.65em;
+            }
+            .new-word {
+                border-bottom-width: 3px;
+            }
+        }
+        
+        /* Touch feedback */
+        .touch-btn {
+            transition: transform 0.1s, background-color 0.2s;
+        }
+        .touch-btn:active {
+            transform: scale(0.96);
+        }
+        
+        /* Smooth scrolling */
+        html {
+            scroll-behavior: smooth;
+            -webkit-overflow-scrolling: touch;
+        }
+        
+        /* Prevent text selection on UI elements */
+        .no-select {
+            -webkit-user-select: none;
+            user-select: none;
+        }
+        
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(59, 130, 246, 0.5);
+            border-radius: 3px;
+        }
+        
+        /* Reading highlight animation */
+        .reading-highlight {
+            background: linear-gradient(120deg, #dbeafe 0%, #bfdbfe 100%);
+            box-shadow: 0 0 0 2px #3b82f6;
+            border-radius: 0.25rem;
+            animation: pulse-highlight 1s infinite;
+        }
+        @keyframes pulse-highlight {
+            0%, 100% { box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.4); }
+            50% { box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.2); }
+        }
+        
+        /* Card hover effects - disabled on touch devices */
+        @media (hover: hover) {
+            .article-card:hover {
+                transform: translateY(-4px);
+                box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+            }
+            .word-span:hover {
+                background: #dbeafe;
+                color: #1e40af;
+                transform: translateY(-1px);
+            }
+        }
+        
+        .article-card {
+            transition: all 0.3s ease;
+        }
+        
+        /* Safe area for notched phones */
+        .safe-top { padding-top: env(safe-area-inset-top); }
+        .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+        .safe-x { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }
+        
+        /* Bottom nav for mobile */
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(255, 255, 255, 0.98);
+            backdrop-filter: blur(20px);
+            border-top: 1px solid rgba(0,0,0,0.1);
+            z-index: 50;
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+        
+        /* Floating action button */
+        .fab {
+            position: fixed;
+            bottom: calc(1.5rem + env(safe-area-inset-bottom));
+            right: 1.5rem;
+            width: 3.5rem;
+            height: 3.5rem;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #3b82f6, #06b6d4);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 20px rgba(59, 130, 246, 0.4);
+            z-index: 40;
+            transition: transform 0.2s;
+        }
+        .fab:active {
+            transform: scale(0.9);
+        }
+        
+        /* Vocab item touch target */
+        .vocab-item {
+            min-height: 3.5rem;
+            display: flex;
+            align-items: center;
+        }
+        
+        /* Loading shimmer */
+        .shimmer {
+            background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+        }
+        @keyframes shimmer {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+    </style>
+</head>
+<body class="text-gray-800 safe-x">
+
+    <!-- Header -->
+    <nav class="glass-panel sticky top-0 z-40 border-b border-white/20 shadow-lg safe-top">
+        <div class="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-9 h-9 bg-gradient-to-br from-blue-600 to-cyan-500 rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-md">
+                    <i class="fas fa-leaf"></i>
+                </div>
+                <div>
+                    <h1 class="text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-700 to-cyan-600 leading-tight">
+                        忍冬人机对话
+                    </h1>
+                    <p class="text-[10px] text-gray-500 leading-tight">Reading Practice</p>
+                </div>
+            </div>
+            <button onclick="toggleSettings()" class="touch-btn w-10 h-10 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-600 transition">
+                <i class="fas fa-cog text-lg"></i>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="max-w-5xl mx-auto px-4 py-4 pb-24 md:pb-8">
+        
+        <!-- Article Library -->
+        <section id="library-section" class="space-y-4">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
+                <div class="text-white">
+                    <h2 class="text-2xl sm:text-3xl font-bold mb-1">朗读材料库</h2>
+                    <p class="text-blue-100 text-sm sm:text-base">点击单词听发音，生词自动标注音标</p>
+                </div>
+                <div class="flex gap-1.5 bg-white/20 backdrop-blur rounded-xl p-1.5 w-full sm:w-auto overflow-x-auto no-select">
+                    <button onclick="filterArticles('all')" class="filter-btn touch-btn px-3 py-2 rounded-lg text-white hover:bg-white/20 transition text-sm font-medium bg-white/30 whitespace-nowrap flex-1 sm:flex-none text-center">全部</button>
+                    <button onclick="filterArticles('easy')" class="filter-btn touch-btn px-3 py-2 rounded-lg text-white hover:bg-white/20 transition text-sm font-medium whitespace-nowrap flex-1 sm:flex-none text-center">初级</button>
+                    <button onclick="filterArticles('medium')" class="filter-btn touch-btn px-3 py-2 rounded-lg text-white hover:bg-white/20 transition text-sm font-medium whitespace-nowrap flex-1 sm:flex-none text-center">中级</button>
+                    <button onclick="filterArticles('hard')" class="filter-btn touch-btn px-3 py-2 rounded-lg text-white hover:bg-white/20 transition text-sm font-medium whitespace-nowrap flex-1 sm:flex-none text-center">高级</button>
+                </div>
+            </div>
+
+            <div id="articles-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <!-- Articles injected here -->
+            </div>
+        </section>
+
+        <!-- Reading Practice Section -->
+        <section id="practice-section" class="hidden space-y-4">
+            <button onclick="backToLibrary()" class="touch-btn mb-2 text-white hover:text-blue-200 flex items-center gap-2 transition font-medium text-sm sm:text-base">
+                <i class="fas fa-arrow-left"></i> 返回列表
+            </button>
+            
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                <!-- Main Reading Area -->
+                <div class="lg:col-span-2 space-y-4">
+                    <div class="glass-panel rounded-2xl p-4 sm:p-6 shadow-2xl">
+                        <!-- Header -->
+                        <div class="flex flex-col gap-4 mb-6 border-b border-gray-200 pb-4">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <div class="flex items-center gap-2 mb-2 flex-wrap">
+                                        <span id="current-difficulty" class="difficulty-badge difficulty-easy">初级</span>
+                                        <span class="text-gray-400 text-xs">#<span id="article-number">1</span></span>
+                                    </div>
+                                    <h1 id="article-title" class="text-xl sm:text-2xl font-bold text-gray-900 leading-tight">文章标题</h1>
+                                </div>
+                            </div>
+                            
+                            <!-- Stats & Controls -->
+                            <div class="flex flex-wrap items-center justify-between gap-3">
+                                <div class="flex items-center gap-3 text-xs sm:text-sm text-gray-500">
+                                    <span class="flex items-center gap-1.5 bg-gray-100 px-2 py-1 rounded-full">
+                                        <i class="fas fa-font text-blue-500 text-xs"></i>
+                                        <span id="word-count">0</span>词
+                                    </span>
+                                    <span class="flex items-center gap-1.5 bg-yellow-50 px-2 py-1 rounded-full">
+                                        <i class="fas fa-bookmark text-yellow-600 text-xs"></i>
+                                        <span id="new-word-count">0</span>生词
+                                    </span>
+                                </div>
+                                
+                                <!-- Playback Controls -->
+                                <div class="flex items-center gap-2 bg-gray-50 rounded-xl p-1.5">
+                                    <button onclick="speakText()" class="touch-btn w-10 h-10 bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center justify-center shadow-md" title="朗读全文">
+                                        <i class="fas fa-play"></i>
+                                    </button>
+                                    <button onclick="stopSpeaking()" class="touch-btn w-9 h-9 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg flex items-center justify-center" title="停止">
+                                        <i class="fas fa-stop text-sm"></i>
+                                    </button>
+                                    <div class="h-6 w-px bg-gray-300 mx-1"></div>
+                                    <button onclick="adjustSpeed(-0.1)" class="touch-btn px-2 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-200 rounded-lg" title="减速">
+                                        <i class="fas fa-minus"></i>
+                                    </button>
+                                    <span id="speed-display" class="text-xs font-bold text-blue-600 w-10 text-center">1.0x</span>
+                                    <button onclick="adjustSpeed(0.1)" class="touch-btn px-2 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-200 rounded-lg" title="加速">
+                                        <i class="fas fa-plus"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Article Content -->
+                        <div id="article-content" class="prose prose-base sm:prose-lg max-w-none leading-loose text-gray-800 min-h-[200px]">
+                            <!-- Content with clickable words -->
+                        </div>
+
+                        <!-- Legend -->
+                        <div class="mt-6 pt-4 border-t border-gray-200 flex flex-wrap items-center gap-4 text-xs text-gray-500">
+                            <span class="flex items-center gap-1.5">
+                                <span class="w-3 h-3 bg-yellow-200 border-b-2 border-yellow-500 rounded-sm"></span>
+                                生词带音标
+                            </span>
+                            <span class="flex items-center gap-1.5">
+                                <span class="w-3 h-3 bg-blue-100 rounded-sm"></span>
+                                点击朗读
+                            </span>
+                            <span class="hidden sm:flex items-center gap-1.5">
+                                <i class="fas fa-keyboard text-blue-400"></i>
+                                空格键播放/暂停
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sidebar: Vocabulary -->
+                <div class="lg:col-span-1">
+                    <div class="glass-panel rounded-2xl p-4 shadow-xl lg:sticky lg:top-20">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="font-bold text-base flex items-center gap-2 text-gray-900">
+                                <i class="fas fa-book text-yellow-500"></i>
+                                生词表
+                            </h3>
+                            <button onclick="speakAllVocab()" class="touch-btn text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-1.5 rounded-full transition font-medium flex items-center gap-1">
+                                <i class="fas fa-play"></i> 全部朗读
+                            </button>
+                        </div>
+                        <div id="vocabulary-list" class="space-y-2 max-h-[60vh] overflow-y-auto pr-1 -mr-1">
+                            <!-- Vocabulary items -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Mobile Bottom Navigation (visible only on small screens) -->
+    <nav class="bottom-nav sm:hidden safe-bottom">
+        <div class="flex justify-around items-center h-14">
+            <button onclick="showSection('library')" class="flex flex-col items-center justify-center w-full h-full text-gray-600 active:text-blue-600">
+                <i class="fas fa-list text-lg mb-0.5"></i>
+                <span class="text-[10px]">文章库</span>
+            </button>
+            <div class="w-px h-8 bg-gray-200"></div>
+            <button onclick="if(currentArticle) showSection('practice')" class="flex flex-col items-center justify-center w-full h-full text-gray-600 active:text-blue-600">
+                <i class="fas fa-book-open text-lg mb-0.5"></i>
+                <span class="text-[10px]">朗读</span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-end sm:items-center justify-center p-0 sm:p-4 transition-opacity">
+        <div class="glass-panel w-full sm:max-w-sm sm:rounded-2xl rounded-t-2xl p-6 shadow-2xl transform transition-transform translate-y-full sm:translate-y-0" id="settings-panel">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-lg font-bold">设置</h3>
+                <button onclick="toggleSettings()" class="touch-btn w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center transition">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="space-y-6">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">朗读语速</label>
+                    <input type="range" id="speed-slider" min="0.5" max="1.5" step="0.1" value="1.0" 
+                        class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                        oninput="updateSpeedFromSlider(this.value)">
+                    <div class="flex justify-between text-xs text-gray-500 mt-1">
+                        <span>慢速</span>
+                        <span id="slider-value" class="font-bold text-blue-600">1.0x</span>
+                        <span>快速</span>
+                    </div>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">选择语音</label>
+                    <select id="voice-select" onchange="changeVoice()" class="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                        <option value="">默认语音</option>
+                    </select>
+                </div>
+
+                <div class="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
+                    <div>
+                        <div class="text-sm font-medium text-gray-700">自动高亮单词</div>
+                        <div class="text-xs text-gray-500">朗读时高亮当前单词</div>
+                    </div>
+                    <button id="highlight-toggle" onclick="toggleHighlight()" class="w-12 h-7 bg-blue-600 rounded-full relative transition-colors touch-btn">
+                        <span class="absolute right-1 top-1 w-5 h-5 bg-white rounded-full transition-transform shadow-sm"></span>
+                    </button>
+                </div>
+
+                <div class="pt-4 border-t border-gray-200 text-center">
+                    <p class="text-xs text-gray-400">忍冬人机对话练习 v1.0</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 24 Articles Data
+        const articles = [
+            {
+                id: 1,
+                title: "Letter to Millie",
+                difficulty: "easy",
+                content: "Thanks for your letter. I study at Hope Middle School. Our school is small. We only have a few classrooms. We do not have a library, but we have a reading room. Sometimes we read books there. Our playground is in front of the classrooms. It is not very big. We often play there after school. Our teachers are all very kind. We like them very much. I live far away from the school. I go to school on foot every day. It takes me about an hour to get to school.",
+                newWords: [
+                    {word: "classrooms", phonetic: "/ˈklɑːsruːmz/", meaning: "教室"},
+                    {word: "library", phonetic: "/ˈlaɪbrəri/", meaning: "图书馆"},
+                    {word: "playground", phonetic: "/ˈpleɪɡraʊnd/", meaning: "操场"},
+                    {word: "teachers", phonetic: "/ˈtiːtʃəz/", meaning: "老师"}
+                ]
+            },
+            {
+                id: 2,
+                title: "Halloween",
+                difficulty: "easy",
+                content: "Halloween is on October 31. How do we celebrate it? Children have lots of fun on that day. We dress up and wear masks. Sometimes we paint our faces. We also make pumpkin lanterns. It is interesting. When the evening comes, we visit houses and play a game with the people inside. We knock on their doors and shout \"trick or treat\". Usually they give us some candy as a treat. If they do not give us a treat, we play a trick on them. We always have a party on the evening of October 31 and enjoy nice food and drinks. It is really a special day.",
+                newWords: [
+                    {word: "celebrate", phonetic: "/ˈselɪbreɪt/", meaning: "庆祝"},
+                    {word: "masks", phonetic: "/mɑːsks/", meaning: "面具"},
+                    {word: "pumpkin", phonetic: "/ˈpʌmpkɪn/", meaning: "南瓜"},
+                    {word: "lanterns", phonetic: "/ˈlæntənz/", meaning: "灯笼"},
+                    {word: "trick", phonetic: "/trɪk/", meaning: "恶作剧"}
+                ]
+            },
+            {
+                id: 3,
+                title: "Kitty and Daniel",
+                difficulty: "easy",
+                content: "Hi! My name is Kitty. I love dancing. I dance for half an hour every day. Healthy food is important for me. I need to keep fit. I always have milk and bread for breakfast. For lunch and dinner, I usually eat fish and vegetables. Sometimes I feel hungry between meals, so I eat an apple or a pear. I seldom eat cakes or sweets. They have too much sugar and are bad for my teeth. Hello! I am Daniel. I like playing computer games. I seldom exercise. I love hamburgers and cola, but they are not healthy.",
+                newWords: [
+                    {word: "dancing", phonetic: "/ˈdɑːnsɪŋ/", meaning: "跳舞"},
+                    {word: "healthy", phonetic: "/ˈhelθi/", meaning: "健康的"},
+                    {word: "vegetables", phonetic: "/ˈvedʒtəblz/", meaning: "蔬菜"},
+                    {word: "seldom", phonetic: "/ˈseldəm/", meaning: "很少"},
+                    {word: "exercise", phonetic: "/ˈeksəsaɪz/", meaning: "锻炼"}
+                ]
+            },
+            {
+                id: 4,
+                title: "Fashion Show",
+                difficulty: "medium",
+                content: "Good evening, ladies and gentlemen. Welcome to our fashion show. I am Millie from Class 1, Grade 7. Today we are going to show you different styles of clothes. Look at me. I am wearing sports clothes and a pair of trainers. Trainers are light and comfortable and are popular among young people. Here comes Simon. He is wearing a purple shirt and a pair of grey trousers. His red and grey tie matches his clothes. He looks smart. Now Amy and Daniel are coming. They look cool! Amy is wearing a yellow cotton blouse and a blue scarf. Daniel is wearing a blue shirt.",
+                newWords: [
+                    {word: "fashion", phonetic: "/ˈfæʃn/", meaning: "时尚"},
+                    {word: "trainers", phonetic: "/ˈtreɪnəz/", meaning: "运动鞋"},
+                    {word: "comfortable", phonetic: "/ˈkʌmftəbl/", meaning: "舒适的"},
+                    {word: "trousers", phonetic: "/ˈtraʊzəz/", meaning: "裤子"},
+                    {word: "cotton", phonetic: "/ˈkɒtn/", meaning: "棉的"}
+                ]
+            },
+            {
+                id: 5,
+                title: "Zoo Guide",
+                difficulty: "easy",
+                content: "Hi, everybody. Here we're in front of the South Gate. Go straight on, and you'll find the Panda House. Pandas are cute. They like to eat bamboo and lie down all day long. Every year, lots of visitors come here to see them. Walk along the road. To the north of the Panda House, you'll find the lions. Lions are the kings of the animal world. Remember that they're dangerous. Never go near them. Turn left, and to the west of the Lions' Area, you'll find the World of Birds. Birds make beautiful sounds when they sing. To the north of the World of Birds is the Monkeys' Forest.",
+                newWords: [
+                    {word: "visitors", phonetic: "/ˈvɪzɪtəz/", meaning: "游客"},
+                    {word: "dangerous", phonetic: "/ˈdeɪndʒərəs/", meaning: "危险的"},
+                    {word: "bamboo", phonetic: "/bæmˈbuː/", meaning: "竹子"}
+                ]
+            },
+            {
+                id: 6,
+                title: "Sunshine Park",
+                difficulty: "medium",
+                content: "One Sunday morning, Millie and Amy went to Sunshine Park. As usual, they sat down under a big tree. Suddenly, they heard a whisper from the bushes behind the tree. They turned around but saw nothing. \"Is anybody there?\" Millie asked. Nobody replied. \"That's strange,\" the two girls were very afraid. They left the park quickly. On their way home, they met Andy. \"What happened?\" Andy asked. \"There's a 'ghost' in the park!\" Millie said. Then she told Andy everything. \"What is it?\" Andy wondered. He went to the park, stood beside the tree and listened carefully. Then he heard the whisper! He searched the bushes.",
+                newWords: [
+                    {word: "whisper", phonetic: "/ˈwɪspə/", meaning: "低语"},
+                    {word: "bushes", phonetic: "/ˈbʊʃɪz/", meaning: "灌木丛"},
+                    {word: "replied", phonetic: "/rɪˈplaɪd/", meaning: "回答"},
+                    {word: "wondered", phonetic: "/ˈwʌndəd/", meaning: "想知道"}
+                ]
+            },
+            {
+                id: 7,
+                title: "Alice in Wonderland",
+                difficulty: "medium",
+                content: "Alice opened the bottle and drank a little. It tasted sweet. Alice liked it. She drank some more. Then she felt a little ill. She looked down and saw that her body became smaller and smaller. Soon Alice was small enough to go through the door, so she decided to enter the garden. When she walked towards the door, she forgot about the key. Alice had to go back to the table, but she was too small to reach the key. She tried to climb up, but failed. Then she saw a piece of cake under the table. A note on the box said \"EAT ME\".",
+                newWords: [
+                    {word: "tasted", phonetic: "/ˈteɪstɪd/", meaning: "尝起来"},
+                    {word: "decided", phonetic: "/dɪˈsaɪdɪd/", meaning: "决定"},
+                    {word: "towards", phonetic: "/təˈwɔːdz/", meaning: "朝向"}
+                ]
+            },
+            {
+                id: 8,
+                title: "Woodland School",
+                difficulty: "medium",
+                content: "My name is Nancy. I am in Year 8 at Woodland School near London. It is a mixed school. Boys and girls have lessons together. Among all my subjects, I like French best. Learning foreign languages is fun. Our school has a Reading Week every year. During the week, we can borrow more books from the school library. We can also bring in books and magazines from home. I often read more books than my classmates. Near the end of the week, we discuss the books with our classmates in class. Time seems to go faster when we are reading interesting books.",
+                newWords: [
+                    {word: "subjects", phonetic: "/ˈsʌbdʒɪkts/", meaning: "科目"},
+                    {word: "foreign", phonetic: "/ˈfɒrən/", meaning: "外国的"},
+                    {word: "magazines", phonetic: "/ˌmæɡəˈziːnz/", meaning: "杂志"},
+                    {word: "discuss", phonetic: "/dɪˈskʌs/", meaning: "讨论"}
+                ]
+            },
+            {
+                id: 9,
+                title: "Xi Wang the Panda",
+                difficulty: "medium",
+                content: "I first saw the baby panda when she was only ten days old. We called her Xi Wang. This means \"hope\". When Xi Wang was born, she weighed just 100 grams and looked like a white mouse. At four months old, she weighed about eight kilograms and started to go outside for the first time. Eight months later, she was not a small baby any more and weighed over 35 kilograms. In the beginning, Xi Wang drank her mother's milk. When she was six months old, she began to eat bamboo. When she was 20 months old, she learnt to look after herself.",
+                newWords: [
+                    {word: "weighed", phonetic: "/weɪd/", meaning: "重量为"},
+                    {word: "kilograms", phonetic: "/ˈkɪləɡræmz/", meaning: "千克"},
+                    {word: "bamboo", phonetic: "/bæmˈbuː/", meaning: "竹子"}
+                ]
+            },
+            {
+                id: 10,
+                title: "Zhalong Nature Reserve",
+                difficulty: "hard",
+                content: "Many birds live in Zhalong all year round, while some go there only for a short stay. Most birds are active in the daytime, so you can easily watch them there. There are not many types of cranes left in the world, but 40 per cent of those types live in Zhalong. Some people want to make the wetlands smaller in order to have more space for farms and buildings. This will lead to less and less space for wildlife. Moreover, fishermen keep fishing there. As a result, the birds do not have enough food to eat. Now the Chinese government has made laws to prevent all these things in Zhalong.",
+                newWords: [
+                    {word: "wetlands", phonetic: "/ˈwetlændz/", meaning: "湿地"},
+                    {word: "wildlife", phonetic: "/ˈwaɪldlaɪf/", meaning: "野生动物"},
+                    {word: "fishermen", phonetic: "/ˈfɪʃəmən/", meaning: "渔民"},
+                    {word: "prevent", phonetic: "/prɪˈvent/", meaning: "阻止"}
+                ]
+            },
+            {
+                id: 11,
+                title: "Around the World in Eight Hours",
+                difficulty: "medium",
+                content: "Welcome to \"Around the World in Eight Hours\". I'm your tour guide, Robin. Have you noticed the \"Tour\" icon at the top of the page? Just click on it, and you can visit Asia, Africa, Europe, America and more in only eight hours! Here we are in \"the Big Apple\"—New York, the biggest city in the USA. Wall Street, the world-famous trade centre, is here at the southern end of Manhattan Island. There are many big companies and international banks here. Further on is Times Square. Every year, thousands of people gather here on New Year's Eve. It's exciting to see the huge glass ball falling through the darkness!",
+                newWords: [
+                    {word: "icon", phonetic: "/ˈaɪkɒn/", meaning: "图标"},
+                    {word: "Manhattan", phonetic: "/mænˈhætən/", meaning: "曼哈顿"},
+                    {word: "international", phonetic: "/ˌɪntəˈnæʃnəl/", meaning: "国际的"}
+                ]
+            },
+            {
+                id: 12,
+                title: "Gulliver's Travels",
+                difficulty: "hard",
+                content: "After our ship crashed against the rocks, I swam as far as I could. By the time I finally felt the land under my feet, I was tired out. I fell down on the beach and went to sleep. I woke up as the sun was rising, but I found I could not move. My arms, legs and hair were tied to the ground! Then I felt something on my leg. It moved up over my stomach and neck until it was standing near my face. I looked down and saw a very small man. He was the same size as my little finger! Where was I? Who was this tiny person?",
+                newWords: [
+                    {word: "crashed", phonetic: "/kræʃt/", meaning: "碰撞"},
+                    {word: "stomach", phonetic: "/ˈstʌmək/", meaning: "胃"},
+                    {word: "tiny", phonetic: "/ˈtaɪni/", meaning: "微小的"}
+                ]
+            },
+            {
+                id: 13,
+                title: "Special Olympics",
+                difficulty: "hard",
+                content: "Liu Ming did not know what to expect when he volunteered for the Special Olympics World Summer Games in Shanghai, back in October 2007. Now he thinks it was the most amazing experience of his life. \"It's fantastic to work as a volunteer!\" he said. The Special Olympics World Games give children and adults with intellectual disabilities a chance to show their skills to the world. They include many events similar to those in the Olympics, such as basketball, football and swimming. Over 40,000 people gave up their spare time for the 2007 Special Olympics World Games. It was necessary for these volunteers to receive training before doing their tasks.",
+                newWords: [
+                    {word: "volunteered", phonetic: "/ˌvɒlənˈtɪəd/", meaning: "志愿做"},
+                    {word: "intellectual", phonetic: "/ˌɪntəˈlektʃuəl/", meaning: "智力的"},
+                    {word: "disabilities", phonetic: "/ˌdɪsəˈbɪlətiz/", meaning: "残疾"},
+                    {word: "necessary", phonetic: "/ˈnesəsəri/", meaning: "必要的"}
+                ]
+            },
+            {
+                id: 14,
+                title: "ORBIS Nurse",
+                difficulty: "hard",
+                content: "Diana was once a secretary of a big company. She lived in a comfortable flat and drove to work. She travelled to many places, but she seldom took the plane. She was afraid of flying. One day, Diana saw a TV programme about ORBIS. She learnt about the Flying Eye Hospital. She wanted to help poor people with eye problems see again, so she made up her mind to train as a nurse and attended courses after work. Diana is working for ORBIS now. She has to travel over 300 days a year. She is getting used to travelling by plane. Diana enjoys her work. She is glad to be able to help people see again. She does not have as much money as before, but she thinks her life is more meaningful.",
+                newWords: [
+                    {word: "secretary", phonetic: "/ˈsekrətri/", meaning: "秘书"},
+                    {word: "comfortable", phonetic: "/ˈkʌmftəbl/", meaning: "舒适的"},
+                    {word: "meaningful", phonetic: "/ˈmiːnɪŋfl/", meaning: "有意义的"}
+                ]
+            },
+            {
+                id: 15,
+                title: "Recycling in Switzerland",
+                difficulty: "hard",
+                content: "I love Switzerland. It is a country with high mountains and clean blue lakes. It is beautiful, and we should try to keep it that way. In Switzerland, things like glass, plastic and paper are separated into different groups and then recycled. Even old clothes and shoes can be recycled. I learnt about an organization for recycling clothes. It collects old clothes from all over the country. Some of the clothes are sold in charity shops, some are given to the poor, and others are sent to factories for recycling. My family and I often send our old jeans and T-shirts to this organization.",
+                newWords: [
+                    {word: "recycled", phonetic: "/ˌriːˈsaɪkld/", meaning: "回收"},
+                    {word: "organization", phonetic: "/ˌɔːɡənaɪˈzeɪʃn/", meaning: "组织"},
+                    {word: "charity", phonetic: "/ˈtʃærəti/", meaning: "慈善"}
+                ]
+            },
+            {
+                id: 16,
+                title: "Colours and Moods",
+                difficulty: "hard",
+                content: "Some people believe that colours can influence our moods. You may wonder whether it is true. In fact, colours can change our moods and make us feel happy or sad, energetic or sleepy. This article explains what colours can do and what characteristics they represent. Calm colours: Have you ever walked into a room and felt relaxed? It could be because the walls were painted blue. Blue is a calm colour. It brings peace to our mind and body. Blue can also represent sadness, so you may say \"I'm feeling blue\" when you are feeling sad. White is another calm colour. It is also the colour of purity.",
+                newWords: [
+                    {word: "influence", phonetic: "/ˈɪnfluəns/", meaning: "影响"},
+                    {word: "energetic", phonetic: "/ˌenəˈdʒetɪk/", meaning: "精力充沛的"},
+                    {word: "represent", phonetic: "/ˌreprɪˈzent/", meaning: "代表"},
+                    {word: "purity", phonetic: "/ˈpjʊərəti/", meaning: "纯洁"}
+                ]
+            },
+            {
+                id: 17,
+                title: "Spud Webb",
+                difficulty: "hard",
+                content: "Although he was a great player at university, the NBA was not interested in him because all its players were more than 20cm taller than he was. After he graduated, he was forced to play in another basketball league. He remained there for about a year before the NBA took notice of him. In 1985, he joined the Atlanta Hawks and became the shortest player in the NBA at that time. He had many great achievements, but his proudest moment came in 1986—he won the Slam Dunk Contest. Through hard work, Spud Webb proved that size and body type do not matter—you can do almost anything if you never give up!",
+                newWords: [
+                    {word: "graduated", phonetic: "/ˈɡrædʒueɪtɪd/", meaning: "毕业"},
+                    {word: "achievements", phonetic: "/əˈtʃiːvmənts/", meaning: "成就"},
+                    {word: "proved", phonetic: "/pruːvd/", meaning: "证明"}
+                ]
+            },
+            {
+                id: 18,
+                title: "Tan Dun",
+                difficulty: "hard",
+                content: "Each time a medal was presented to a winner at the Beijing 2008 Olympic Games, the award music was played. The music was written by Tan Dun, a world-famous composer. Born in 1958 in central Hunan, China, Tan Dun grew up near the Liuyang River. When he was very young, Tan showed an interest in music. He loves the sounds of the rushing water and the blowing wind because, to him, the best music comes from nature. Since he had no musical instruments then, he made music with common objects like stones and paper.",
+                newWords: [
+                    {word: "composer", phonetic: "/kəmˈpəʊzə/", meaning: "作曲家"},
+                    {word: "instruments", phonetic: "/ˈɪnstrəmənts/", meaning: "乐器"}
+                ]
+            },
+            {
+                id: 19,
+                title: "Audrey Hepburn",
+                difficulty: "hard",
+                content: "Hepburn was born in Belgium on 4 May 1929. As a child, she loved dancing and dreamt of becoming a successful ballet dancer. After World War II, she moved to London with her mother. She worked as a model before becoming an actress. In 1951, while acting in France, Hepburn met the French writer Colette. Hepburn's beauty and charm caught the writer's attention. Colette insisted that Hepburn was the perfect girl for the lead role in Gigi, a play based upon her novel, although Hepburn had never played any major roles before. That event marked the beginning of her successful career.",
+                newWords: [
+                    {word: "dreamt", phonetic: "/dremt/", meaning: "梦想"},
+                    {word: "ballet", phonetic: "/ˈbæleɪ/", meaning: "芭蕾"},
+                    {word: "insisted", phonetic: "/ɪnˈsɪstɪd/", meaning: "坚持"}
+                ]
+            },
+            {
+                id: 20,
+                title: "Murder Mystery",
+                difficulty: "hard",
+                content: "Early today, the body of a 25-year-old man was found in West Town. The police have confirmed that the victim was a computer engineer. He was last seen leaving his office in East Town at about 7 p.m. yesterday. He said he was going to visit his parents. The police believe that the murder took place between 9 p.m. last night and 1 a.m. this morning. They are still working at the scene of the crime to find out whether the victim was killed somewhere else and then brought to West Town, or killed at the place where he was found.",
+                newWords: [
+                    {word: "victim", phonetic: "/ˈvɪktɪm/", meaning: "受害者"},
+                    {word: "murder", phonetic: "/ˈmɜːdə/", meaning: "谋杀"},
+                    {word: "confirmed", phonetic: "/kənˈfɜːmd/", meaning: "确认"}
+                ]
+            },
+            {
+                id: 21,
+                title: "Beijing Sights",
+                difficulty: "medium",
+                content: "I am Wei Ke from Beijing, the capital of China. In the middle of the ancient city of Beijing is the Palace Museum, also called the Forbidden City. The emperors of the Ming and Qing dynasties used to live there. It was turned into a museum in 1925. With wonderful buildings and art treasures inside, it is well worth a visit. Next to the Palace Museum is Tian'anmen Square, one of the biggest city squares in the world. Many tourists like to gather there early in the morning to watch the raising of the national flag.",
+                newWords: [
+                    {word: "ancient", phonetic: "/ˈeɪnʃənt/", meaning: "古老的"},
+                    {word: "dynasties", phonetic: "/ˈdɪnəstiz/", meaning: "朝代"},
+                    {word: "treasures", phonetic: "/ˈtreʒəz/", meaning: "珍宝"}
+                ]
+            },
+            {
+                id: 22,
+                title: "Neil Armstrong",
+                difficulty: "hard",
+                content: "Neil Armstrong was born on 5 August 1930 in Ohio, the USA. He became interested in flying when he took his first flight at the age of six. He received his student pilot's licence when he was sixteen. Armstrong joined the navy in 1949 and served as a pilot for three years. In 1955, he became a test pilot. He flew over 1,100 hours and tested all types of aircraft. In 1962, he was chosen to become an astronaut. In 1966, he went into space as command pilot of Gemini 8. He and David Scott managed to join two spacecraft together for the first time in space.",
+                newWords: [
+                    {word: "licence", phonetic: "/ˈlaɪsns/", meaning: "执照"},
+                    {word: "aircraft", phonetic: "/ˈeəkrɑːft/", meaning: "飞机"},
+                    {word: "astronaut", phonetic: "/ˈæstrənɔːt/", meaning: "宇航员"},
+                    {word: "spacecraft", phonetic: "/ˈspeɪskrɑːft/", meaning: "航天器"}
+                ]
+            },
+            {
+                id: 23,
+                title: "Mr Jiang's Robot",
+                difficulty: "medium",
+                content: "Mr Jiang is a manager of a big company in Sunshine Town. He is always too busy to have any time to relax. \"I have to buy a robot so that I can have more free time,\" Mr Jiang thought. So he ordered one from a robot shop. The robot made Mr Jiang's life much easier. When he got up in the morning, breakfast was made, his business suit was smoothly ironed, and his lunch box was already prepared. That made him very happy. While Mr Jiang was at work, the robot would do all the housework. It would go shopping at the supermarket as well.",
+                newWords: [
+                    {word: "manager", phonetic: "/ˈmænɪdʒə/", meaning: "经理"},
+                    {word: "smoothly", phonetic: "/ˈsmuːðli/", meaning: "平稳地"},
+                    {word: "ironed", phonetic: "/ˈaɪənd/", meaning: "熨烫"}
+                ]
+            },
+            {
+                id: 24,
+                title: "Life on Mars",
+                difficulty: "hard",
+                content: "Some people believe that humans could live on the planet Mars by the year 2100. Our own planet, the Earth, is becoming more and more crowded and polluted because of the rapid increase in population. It is hoped that people could start all over again and build a better world on Mars. Here is what life there could be like. At present, our spacecraft are too slow to carry large numbers of passengers to Mars—it would take months. With the development of technology, by the year 2100, the journey might only take about 20 minutes in spacecraft that travel at the speed of light!",
+                newWords: [
+                    {word: "planet", phonetic: "/ˈplænɪt/", meaning: "行星"},
+                    {word: "crowded", phonetic: "/ˈkraʊdɪd/", meaning: "拥挤的"},
+                    {word: "polluted", phonetic: "/pəˈluːtɪd/", meaning: "被污染的"},
+                    {word: "technology", phonetic: "/tekˈnɒlədʒi/", meaning: "技术"}
+                ]
+            }
+        ];
+
+        let currentArticle = null;
+        let synth = window.speechSynthesis;
+        let voices = [];
+        let currentRate = 1.0;
+        let autoHighlight = true;
+        let wordElements = [];
+        let currentWordIndex = -1;
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            renderArticles();
+            initSpeech();
+            loadVoices();
+            
+            // Keyboard shortcuts
+            document.addEventListener('keydown', (e) => {
+                if (e.code === 'Space' && currentArticle && e.target.tagName !== 'BUTTON') {
+                    e.preventDefault();
+                    if (synth.speaking) {
+                        stopSpeaking();
+                    } else {
+                        speakText();
+                    }
+                }
+            });
+        });
+
+        function initSpeech() {
+            voices = synth.getVoices();
+            if (voices.length === 0) {
+                synth.addEventListener('voiceschanged', loadVoices);
+            }
+        }
+
+        function loadVoices() {
+            voices = synth.getVoices();
+            const select = document.getElementById('voice-select');
+            select.innerHTML = '<option value="">默认语音</option>';
+            
+            voices.forEach((voice, i) => {
+                if (voice.lang.includes('en')) {
+                    const option = document.createElement('option');
+                    option.value = i;
+                    option.textContent = `${voice.name} (${voice.lang})`;
+                    select.appendChild(option);
+                }
+            });
+        }
+
+        function getVoice() {
+            const select = document.getElementById('voice-select');
+            if (select.value) {
+                return voices[select.value];
+            }
+            return voices.find(v => v.lang.includes('en-US')) || 
+                   voices.find(v => v.lang.includes('en')) || 
+                   voices[0];
+        }
+
+        function speakWord(word, element) {
+            if (synth.speaking) {
+                synth.cancel();
+                clearHighlight();
+            }
+            
+            const utterance = new SpeechSynthesisUtterance(word);
+            utterance.lang = 'en-US';
+            utterance.rate = currentRate;
+            utterance.voice = getVoice();
+            
+            element.classList.add('playing');
+            utterance.onend = () => {
+                element.classList.remove('playing');
+            };
+            
+            synth.speak(utterance);
+        }
+
+        function speakText() {
+            if (!currentArticle) return;
+            if (synth.speaking) {
+                stopSpeaking();
+                return;
+            }
+            
+            const text = currentArticle.content;
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'en-US';
+            utterance.rate = currentRate;
+            utterance.voice = getVoice();
+            
+            if (autoHighlight) {
+                utterance.onboundary = (event) => {
+                    const charIndex = event.charIndex;
+                    updateHighlight(charIndex);
+                };
+            }
+            
+            utterance.onend = () => {
+                clearHighlight();
+                currentWordIndex = -1;
+            };
+            
+            synth.speak(utterance);
+        }
+
+        function stopSpeaking() {
+            synth.cancel();
+            clearHighlight();
+            currentWordIndex = -1;
+        }
+
+        function updateHighlight(charIndex) {
+            const textUpToIndex = currentArticle.content.substring(0, charIndex);
+            const wordIndex = textUpToIndex.split(/\s+/).length - 1;
+            
+            if (wordIndex !== currentWordIndex && wordIndex < wordElements.length) {
+                clearHighlight();
+                currentWordIndex = wordIndex;
+                if (wordElements[wordIndex]) {
+                    wordElements[wordIndex].classList.add('reading-highlight');
+                    // Only scroll on mobile if needed
+                    if (window.innerWidth < 640) {
+                        wordElements[wordIndex].scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                }
+            }
+        }
+
+        function clearHighlight() {
+            wordElements.forEach(el => el.classList.remove('reading-highlight'));
+        }
+
+        function adjustSpeed(delta) {
+            currentRate = Math.max(0.5, Math.min(1.5, currentRate + delta));
+            updateSpeedDisplay();
+        }
+
+        function updateSpeedFromSlider(value) {
+            currentRate = parseFloat(value);
+            updateSpeedDisplay();
+        }
+
+        function updateSpeedDisplay() {
+            document.getElementById('speed-display').textContent = currentRate.toFixed(1) + 'x';
+            document.getElementById('slider-value').textContent = currentRate.toFixed(1) + 'x';
+            document.getElementById('speed-slider').value = currentRate;
+        }
+
+        function changeVoice() {
+            // Voice will be applied on next speech
+        }
+
+        function toggleHighlight() {
+            autoHighlight = !autoHighlight;
+            const btn = document.getElementById('highlight-toggle');
+            const dot = btn.querySelector('span');
+            if (autoHighlight) {
+                btn.classList.remove('bg-gray-300');
+                btn.classList.add('bg-blue-600');
+                dot.style.transform = 'translateX(0)';
+            } else {
+                btn.classList.remove('bg-blue-600');
+                btn.classList.add('bg-gray-300');
+                dot.style.transform = 'translateX(-20px)';
+            }
+        }
+
+        function speakAllVocab() {
+            if (!currentArticle) return;
+            
+            let index = 0;
+            function speakNext() {
+                if (index >= currentArticle.newWords.length) {
+                    // Clear highlights
+                    document.querySelectorAll('.vocab-item').forEach(item => {
+                        item.classList.remove('bg-blue-50');
+                    });
+                    return;
+                }
+                
+                const word = currentArticle.newWords[index];
+                const utterance = new SpeechSynthesisUtterance(word.word);
+                utterance.lang = 'en-US';
+                utterance.rate = currentRate;
+                utterance.voice = getVoice();
+                
+                utterance.onend = () => {
+                    setTimeout(() => {
+                        index++;
+                        speakNext();
+                    }, 600);
+                };
+                
+                synth.speak(utterance);
+                
+                // Highlight in list
+                const items = document.querySelectorAll('.vocab-item');
+                items.forEach((item, i) => {
+                    item.classList.toggle('bg-blue-50', i === index);
+                    item.classList.toggle('border-blue-200', i === index);
+                });
+            }
+            
+            speakNext();
+        }
+
+        // Navigation
+        function showSection(section) {
+            document.getElementById('library-section').classList.add('hidden');
+            document.getElementById('practice-section').classList.add('hidden');
+            
+            if (section === 'library') {
+                document.getElementById('library-section').classList.remove('hidden');
+                window.scrollTo(0, 0);
+            } else if (section === 'practice') {
+                document.getElementById('practice-section').classList.remove('hidden');
+                window.scrollTo(0, 0);
+            }
+        }
+
+        function backToLibrary() {
+            stopSpeaking();
+            showSection('library');
+            currentArticle = null;
+            wordElements = [];
+        }
+
+        function toggleSettings() {
+            const modal = document.getElementById('settings-modal');
+            const panel = document.getElementById('settings-panel');
+            
+            if (modal.classList.contains('hidden')) {
+                modal.classList.remove('hidden');
+                // Small delay for animation
+                setTimeout(() => {
+                    panel.classList.remove('translate-y-full');
+                }, 10);
+            } else {
+                panel.classList.add('translate-y-full');
+                setTimeout(() => {
+                    modal.classList.add('hidden');
+                }, 300);
+            }
+        }
+
+        // Article Rendering
+        function renderArticles(filter = 'all') {
+            const grid = document.getElementById('articles-grid');
+            grid.innerHTML = '';
+            
+            const filtered = filter === 'all' ? articles : articles.filter(a => a.difficulty === filter);
+            
+            filtered.forEach(article => {
+                const card = document.createElement('div');
+                card.className = 'article-card glass-panel rounded-xl p-4 shadow-lg cursor-pointer bg-white/95 touch-btn';
+                card.onclick = () => openArticle(article.id);
+                
+                const difficultyClass = {
+                    'easy': 'difficulty-easy',
+                    'medium': 'difficulty-medium',
+                    'hard': 'difficulty-hard'
+                }[article.difficulty];
+                
+                const difficultyText = {
+                    'easy': '初级',
+                    'medium': '中级',
+                    'hard': '高级'
+                }[article.difficulty];
+                
+                card.innerHTML = `
+                    <div class="flex justify-between items-start mb-3">
+                        <span class="difficulty-badge ${difficultyClass} text-xs">${difficultyText}</span>
+                        <span class="text-gray-400 text-xs font-mono">#${article.id}</span>
+                    </div>
+                    <h3 class="text-lg font-bold text-gray-900 mb-2 line-clamp-1">${article.title}</h3>
+                    <p class="text-gray-600 text-sm mb-3 line-clamp-2 leading-relaxed h-10">${article.content.substring(0, 60)}...</p>
+                    <div class="flex items-center justify-between text-xs text-gray-500 pt-3 border-t border-gray-100">
+                        <span class="flex items-center gap-1">
+                            <i class="fas fa-font text-blue-400"></i>
+                            ${article.content.split(' ').length}词
+                        </span>
+                        <span class="flex items-center gap-1">
+                            <i class="fas fa-bookmark text-yellow-500"></i>
+                            ${article.newWords.length}生词
+                        </span>
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        function filterArticles(difficulty) {
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.classList.remove('bg-white/30');
+            });
+            event.target.classList.add('bg-white/30');
+            
+            renderArticles(difficulty);
+        }
+
+        function openArticle(id) {
+            currentArticle = articles.find(a => a.id === id);
+            if (!currentArticle) return;
+            
+            showSection('practice');
+            
+            // Update header info
+            document.getElementById('article-title').textContent = currentArticle.title;
+            document.getElementById('article-number').textContent = currentArticle.id;
+            document.getElementById('current-difficulty').className = `difficulty-badge difficulty-${currentArticle.difficulty}`;
+            document.getElementById('current-difficulty').textContent = 
+                currentArticle.difficulty === 'easy' ? '初级' : 
+                currentArticle.difficulty === 'medium' ? '中级' : '高级';
+            
+            const wordCount = currentArticle.content.split(' ').length;
+            document.getElementById('word-count').textContent = wordCount;
+            document.getElementById('new-word-count').textContent = currentArticle.newWords.length;
+            
+            // Render content
+            renderArticleContent();
+            
+            // Render vocabulary
+            renderVocabulary();
+        }
+
+        function renderArticleContent() {
+            const container = document.getElementById('article-content');
+            const newWordMap = new Map(currentArticle.newWords.map(w => [w.word.toLowerCase(), w]));
+            
+            const tokens = currentArticle.content.match(/\b[\w']+\b|[.,!?;:"()\[\]{}]|[^\s\w]/g) || [];
+            
+            let html = '<p class="leading-loose text-base sm:text-lg">';
+            wordElements = [];
+            
+            tokens.forEach((token) => {
+                const cleanToken = token.toLowerCase().replace(/[.,!?;:"]$/, '');
+                const wordData = newWordMap.get(cleanToken);
+                
+                if (/^[a-zA-Z]+$/.test(token)) {
+                    const isNewWord = !!wordData;
+                    const classes = ['word-span'];
+                    if (isNewWord) classes.push('new-word');
+                    
+                    const phoneticHtml = isNewWord ? `<span class="phonetic">${wordData.phonetic}</span>` : '';
+                    const title = isNewWord ? `${wordData.phonetic} - ${wordData.meaning}` : '点击朗读';
+                    
+                    html += `<span class="${classes.join(' ')}" onclick="speakWord('${token}', this)" title="${title}">${token}${phoneticHtml}</span> `;
+                } else {
+                    html += token + ' ';
+                }
+            });
+            
+            html += '</p>';
+            container.innerHTML = html;
+            
+            // Collect DOM elements
+            setTimeout(() => {
+                wordElements = Array.from(container.querySelectorAll('.word-span'));
+            }, 0);
+        }
+
+        function renderVocabulary() {
+            const list = document.getElementById('vocabulary-list');
+            list.innerHTML = currentArticle.newWords.map((word, idx) => `
+                <div class="vocab-item touch-btn p-3 rounded-xl border border-gray-100 bg-gray-50/50 active:bg-blue-50 active:border-blue-200 transition-colors" onclick="speakWord('${word.word}', this.querySelector('.word-text'))">
+                    <div class="w-8 h-8 rounded-full bg-gradient-to-br from-yellow-400 to-orange-500 text-white flex items-center justify-center text-xs font-bold flex-shrink-0 mr-3 shadow-sm">
+                        ${idx + 1}
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-baseline gap-2 flex-wrap">
+                            <span class="word-text font-bold text-gray-900 text-base">${word.word}</span>
+                            <span class="phonetic text-sm text-gray-500">${word.phonetic}</span>
+                        </div>
+                        <p class="text-sm text-gray-600 mt-0.5">${word.meaning}</p>
+                    </div>
+                    <div class="text-gray-400 ml-2">
+                        <i class="fas fa-volume-up text-sm"></i>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Close modal on outside click
+        document.getElementById('settings-modal').addEventListener('click', (e) => {
+            if (e.target === e.currentTarget) toggleSettings();
+        });
+
+        // Prevent double-tap zoom on iOS
+        let lastTouchEnd = 0;
+        document.addEventListener('touchend', (e) => {
+            const now = Date.now();
+            if (now - lastTouchEnd <= 300) {
+                e.preventDefault();
+            }
+            lastTouchEnd = now;
+        }, false);
+    </script>
+</body>
+</html>
