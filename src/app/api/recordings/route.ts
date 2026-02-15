@@ -177,3 +177,57 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: '服务器错误' }, { status: 500 });
   }
 }
+
+// 删除录音
+export async function DELETE(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const recordingId = searchParams.get('id');
+    const userId = searchParams.get('userId');
+    
+    if (!recordingId || !userId) {
+      return NextResponse.json({ error: '缺少必要参数' }, { status: 400 });
+    }
+    
+    const client = getSupabaseClient();
+    
+    // 先查询录音，确认是用户自己的
+    const { data: recording, error: fetchError } = await client
+      .from('recordings')
+      .select('id, user_id, audio_key')
+      .eq('id', parseInt(recordingId))
+      .single();
+    
+    if (fetchError || !recording) {
+      return NextResponse.json({ error: '录音不存在' }, { status: 404 });
+    }
+    
+    if (recording.user_id !== parseInt(userId)) {
+      return NextResponse.json({ error: '无权删除' }, { status: 403 });
+    }
+    
+    // 删除对象存储中的音频文件
+    try {
+      await storage.deleteFile({ fileKey: recording.audio_key });
+    } catch (e) {
+      console.error('Delete audio file error:', e);
+      // 继续删除数据库记录，即使文件删除失败
+    }
+    
+    // 删除数据库记录（会级联删除相关的点赞和评论）
+    const { error: deleteError } = await client
+      .from('recordings')
+      .delete()
+      .eq('id', parseInt(recordingId));
+    
+    if (deleteError) {
+      console.error('Delete recording error:', deleteError);
+      return NextResponse.json({ error: '删除失败' }, { status: 500 });
+    }
+    
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Recording DELETE error:', error);
+    return NextResponse.json({ error: '服务器错误' }, { status: 500 });
+  }
+}

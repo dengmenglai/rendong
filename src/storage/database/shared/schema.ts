@@ -45,6 +45,18 @@ export const checkIns = pgTable("check_ins", {
   index("idx_checkins_user_date").on(table.user_id, table.check_date),
 ]);
 
+// 评论表
+export const comments = pgTable("comments", {
+  id: serial("id").primaryKey(),
+  recording_id: integer("recording_id").notNull().references(() => recordings.id),
+  user_id: integer("user_id").notNull().references(() => users.id),
+  content: text("content").notNull(),
+  created_at: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow(),
+}, (table) => [
+  index("idx_comments_recording").on(table.recording_id),
+  index("idx_comments_created").on(table.created_at),
+]);
+
 // 用户学习统计表
 export const studyStats = pgTable("study_stats", {
   id: serial("id").primaryKey(),

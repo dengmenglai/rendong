@@ -311,6 +311,20 @@ interface Recording {
   };
 }
 
+// 评论类型
+interface Comment {
+  id: number;
+  recording_id: number;
+  user_id: number;
+  content: string;
+  created_at: string;
+  users: {
+    id: number;
+    username: string;
+    avatar: string;
+  };
+}
+
 // 统计类型
 interface StudyStats {
   total_days: number;
@@ -350,6 +364,11 @@ export default function ReadingPractice() {
   const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // 评论相关
+  const [comments, setComments] = useState<{ [key: number]: Comment[] }>({});
+  const [commentInputs, setCommentInputs] = useState<{ [key: number]: string }>({});
+  const [expandedComments, setExpandedComments] = useState<Set<number>>(new Set());
   
   // 签到成功弹窗
   const [showCheckinSuccess, setShowCheckinSuccess] = useState(false);
@@ -718,6 +737,104 @@ export default function ReadingPractice() {
     } catch (error) {
       console.error('Like error:', error);
     }
+  };
+
+  // 删除录音
+  const handleDeleteRecording = async (recordingId: number) => {
+    if (!user) return;
+    if (!confirm('确定要删除这条录音吗？')) return;
+    
+    try {
+      const res = await fetch(`/api/recordings?id=${recordingId}&userId=${user.id}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json();
+      
+      if (data.success) {
+        setRecordings(prev => prev.filter(r => r.id !== recordingId));
+      } else {
+        alert(data.error || '删除失败');
+      }
+    } catch (error) {
+      console.error('Delete recording error:', error);
+      alert('删除失败');
+    }
+  };
+
+  // 加载评论
+  const loadComments = async (recordingId: number) => {
+    try {
+      const res = await fetch(`/api/comments?recordingId=${recordingId}`);
+      const data = await res.json();
+      setComments(prev => ({ ...prev, [recordingId]: data.comments || [] }));
+    } catch (error) {
+      console.error('Load comments error:', error);
+    }
+  };
+
+  // 提交评论
+  const handleSubmitComment = async (recordingId: number) => {
+    if (!user) return;
+    const content = commentInputs[recordingId]?.trim();
+    if (!content) return;
+    
+    try {
+      const res = await fetch('/api/comments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          recordingId,
+          userId: user.id,
+          content,
+        }),
+      });
+      const data = await res.json();
+      
+      if (data.comment) {
+        setComments(prev => ({
+          ...prev,
+          [recordingId]: [...(prev[recordingId] || []), data.comment],
+        }));
+        setCommentInputs(prev => ({ ...prev, [recordingId]: '' }));
+      }
+    } catch (error) {
+      console.error('Submit comment error:', error);
+    }
+  };
+
+  // 删除评论
+  const handleDeleteComment = async (commentId: number, recordingId: number) => {
+    if (!user) return;
+    
+    try {
+      const res = await fetch(`/api/comments?id=${commentId}&userId=${user.id}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json();
+      
+      if (data.success) {
+        setComments(prev => ({
+          ...prev,
+          [recordingId]: (prev[recordingId] || []).filter(c => c.id !== commentId),
+        }));
+      }
+    } catch (error) {
+      console.error('Delete comment error:', error);
+    }
+  };
+
+  // 切换评论展开状态
+  const toggleComments = (recordingId: number) => {
+    setExpandedComments(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(recordingId)) {
+        newSet.delete(recordingId);
+      } else {
+        newSet.add(recordingId);
+        loadComments(recordingId);
+      }
+      return newSet;
+    });
   };
 
   // 录音功能
@@ -1336,9 +1453,20 @@ export default function ReadingPractice() {
                           {rec.users?.avatar || '👤'}
                         </div>
                         <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="font-medium">{rec.users?.username || '用户'}</span>
-                            <span className="text-xs text-gray-400">{formatTimeAgo(rec.created_at)}</span>
+                          <div className="flex items-center justify-between mb-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">{rec.users?.username || '用户'}</span>
+                              <span className="text-xs text-gray-400">{formatTimeAgo(rec.created_at)}</span>
+                            </div>
+                            {/* 删除按钮 - 仅对自己的录音显示 */}
+                            {user?.id === rec.user_id && (
+                              <button
+                                onClick={() => handleDeleteRecording(rec.id)}
+                                className="text-xs text-red-500 hover:text-red-700 px-2 py-1 rounded hover:bg-red-50"
+                              >
+                                🗑️ 删除
+                              </button>
+                            )}
                           </div>
                           <p className="text-sm text-gray-600">{rec.comment}</p>
                           <p className="text-xs text-blue-600 mt-1">📖 {rec.article_title}</p>
@@ -1349,15 +1477,25 @@ export default function ReadingPractice() {
                         <audio src={rec.audio_url} controls className="w-full mb-3" />
                       )}
 
-                      <div className="flex items-center justify-between">
-                        <button
-                          onClick={() => handleLike(rec.id, rec.liked)}
-                          className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition ${
-                            rec.liked ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-600 hover:bg-red-50'
-                          }`}
-                        >
-                          ❤️ {rec.likes}
-                        </button>
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => handleLike(rec.id, rec.liked)}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition ${
+                              rec.liked ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-600 hover:bg-red-50'
+                            }`}
+                          >
+                            ❤️ {rec.likes}
+                          </button>
+                          <button
+                            onClick={() => toggleComments(rec.id)}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition ${
+                              expandedComments.has(rec.id) ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600 hover:bg-blue-50'
+                            }`}
+                          >
+                            💬 {(comments[rec.id]?.length || 0) > 0 ? comments[rec.id].length : ''}
+                          </button>
+                        </div>
                         <button
                           onClick={() => {
                             const article = articles.find(a => a.id === rec.article_id);
@@ -1368,6 +1506,58 @@ export default function ReadingPractice() {
                           查看原文 →
                         </button>
                       </div>
+
+                      {/* 评论区 */}
+                      {expandedComments.has(rec.id) && (
+                        <div className="border-t border-gray-200 pt-3 mt-2">
+                          {/* 评论列表 */}
+                          <div className="space-y-2 mb-3 max-h-40 overflow-y-auto">
+                            {(comments[rec.id] || []).map(c => (
+                              <div key={c.id} className="flex items-start gap-2 text-sm">
+                                <span className="text-lg">{c.users?.avatar || '👤'}</span>
+                                <div className="flex-1">
+                                  <span className="font-medium text-gray-800">{c.users?.username}: </span>
+                                  <span className="text-gray-600">{c.content}</span>
+                                  <span className="text-xs text-gray-400 ml-2">{formatTimeAgo(c.created_at)}</span>
+                                </div>
+                                {/* 删除自己的评论 */}
+                                {user?.id === c.user_id && (
+                                  <button
+                                    onClick={() => handleDeleteComment(c.id, rec.id)}
+                                    className="text-xs text-red-400 hover:text-red-600"
+                                  >
+                                    ✕
+                                  </button>
+                                )}
+                              </div>
+                            ))}
+                            {(comments[rec.id] || []).length === 0 && (
+                              <p className="text-sm text-gray-400 text-center">暂无评论</p>
+                            )}
+                          </div>
+                          
+                          {/* 评论输入框 */}
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              value={commentInputs[rec.id] || ''}
+                              onChange={(e) => setCommentInputs(prev => ({ ...prev, [rec.id]: e.target.value }))}
+                              placeholder="写下你的评论..."
+                              className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleSubmitComment(rec.id);
+                              }}
+                            />
+                            <button
+                              onClick={() => handleSubmitComment(rec.id)}
+                              disabled={!commentInputs[rec.id]?.trim()}
+                              className="px-4 py-2 bg-blue-500 text-white text-sm rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              发送
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
