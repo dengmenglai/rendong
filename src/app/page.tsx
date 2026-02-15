@@ -675,6 +675,11 @@ export default function ReadingPractice() {
 
   // 打开文章
   const openArticle = async (article: typeof articles[0]) => {
+    // 停止之前的语音播放
+    if (isSpeaking) {
+      stopSpeaking();
+    }
+    
     setCurrentArticle(article);
     setCurrentView('practice');
     loadRecordings(article.id);
@@ -1126,7 +1131,7 @@ export default function ReadingPractice() {
         {currentView === 'practice' && currentArticle && (
           <section className="space-y-4">
             <button
-              onClick={() => { setCurrentView('library'); setCurrentArticle(null); }}
+              onClick={() => { stopSpeaking(); setCurrentView('library'); setCurrentArticle(null); }}
               className="text-white hover:text-blue-200 flex items-center gap-2 font-medium"
             >
               ← 返回列表
@@ -1588,10 +1593,9 @@ export default function ReadingPractice() {
             <button
               key={tab.id}
               onClick={() => {
-                if (tab.id !== 'practice') {
-                  setCurrentView(tab.id as any);
-                  setCurrentArticle(null);
-                }
+                stopSpeaking();
+                setCurrentView(tab.id as any);
+                setCurrentArticle(null);
               }}
               className={`flex flex-col items-center gap-1 px-4 py-2 ${
                 currentView === tab.id ? 'text-blue-600' : 'text-gray-400'
