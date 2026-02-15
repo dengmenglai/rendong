@@ -18,11 +18,13 @@ function getOssConfig() {
 // 获取 S3 客户端
 function getS3Client() {
   const config = getOssConfig();
+  // 使用虚拟主机风格：https://bucket.oss-region.aliyuncs.com
+  const endpoint = `https://${config.bucket}.${config.region}.aliyuncs.com`;
   return new S3Client({
     region: config.region,
-    endpoint: config.endpoint,
+    endpoint: endpoint,
     credentials: config.credentials,
-    forcePathStyle: false,
+    forcePathStyle: false, // 虚拟主机风格
   }) as S3ClientType;
 }
 
